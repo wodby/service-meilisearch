@@ -1,0 +1,162 @@
+name: meilisearch
+title: Meilisearch
+guidance: GUIDANCE.md
+icon: meilisearch
+type: search
+scalable: false
+
+labels:
+- meilisearch
+- search
+
+options:
+- version: '1'
+  tag: v1.56.1
+  default: true
+
+endpoints:
+- name: meilisearch
+  ports:
+  - name: http
+    number: 7700
+    protocol: http
+    main: true
+    routeDefaults:
+      https_redirect: 'true'
+      # Document batches of up to 100 MB, Meilisearch's own payload limit, can take longer than the default timeout
+      # to upload. Don't set request_body_size: it buffers every request in the gateway.
+      request_timeout: 5m
+      backend_request_timeout: 5m
+
+tokens:
+- name: master_key
+  generate:
+    regex: '[A-Za-z0-9]{48}'
+
+env:
+- name: MEILI_MASTER_KEY
+  value: '{{master_key}}'
+  secret: true
+# Development keeps the search preview at the service address. Every other environment type runs in production mode,
+# which requires the master key and turns the preview off.
+- name: MEILI_ENV
+  value: development
+  envType: dev
+- name: MEILI_ENV
+  value: production
+  envType: prod
+- name: MEILI_ENV
+  value: production
+  envType: staging
+- name: MEILI_ENV
+  value: production
+  envType: test
+- name: MEILI_ENV
+  value: production
+  envType: feature
+- name: MEILI_DB_PATH
+  value: /meili_data/data.ms
+- name: MEILI_DUMP_DIR
+  value: /meili_data/dumps
+- name: MEILI_SNAPSHOT_DIR
+  value: /meili_data/snapshots
+# A database opens only with the Meilisearch version that wrote it. Image updates move to newer versions, so upgrade
+# the database in place on startup. Meilisearch does nothing when the versions already match.
+- name: MEILI_UPGRADE_DB
+  value: 'true'
+- name: MEILI_NO_ANALYTICS
+  value: 'true'
+
+volumes:
+- name: data
+  title: Meilisearch data
+  size: 10
+  helm:
+    labels: persistence.labels
+    values:
+    - name: persistence.enabled
+      value: true
+    - name: persistence.existingClaim
+      value: '{{volumes.data.claim}}'
+    - name: persistence.size
+      value: '{{volumes.data.size}}Gi'
+
+helm:
+  name: wodby
+  source: oci://registry-1.docker.io/wodby/stateful
+  chart: oci://registry-1.docker.io/wodby/stateful
+  version: 0.2.0
+  valueMappings:
+    replicas: replicaCount
+    nameOverride: nameOverride
+    fullnameOverride: fullnameOverride
+    serviceAccountName: serviceAccount.name
+    serviceAccountCreate: serviceAccount.create
+    strategy: updateStrategy.type
+    minReady: minReadySeconds
+    shutdownGracePeriod: terminationGracePeriodSeconds
+  values:
+  - name: containerName
+    value: meilisearch
+  - name: containerPorts
+    value:
+    - name: http
+      containerPort: 7700
+      protocol: TCP
+  - name: headlessService.enabled
+    value: false
+  - name: persistence.mountPath
+    value: /meili_data
+  - name: podSecurityContext
+    value:
+      fsGroup: 1000
+      fsGroupChangePolicy: OnRootMismatch
+  # The image runs as root by default; Meilisearch needs to write only to its data volume and /tmp.
+  - name: securityContext
+    value:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+  # GET /health needs no API key and answers once the database is open.
+  - name: startupProbe
+    value:
+      httpGet:
+        path: /health
+        port: http
+      failureThreshold: 60
+      periodSeconds: 5
+  - name: readinessProbe
+    value:
+      httpGet:
+        path: /health
+        port: http
+      periodSeconds: 10
+      timeoutSeconds: 5
+  - name: livenessProbe
+    value:
+      httpGet:
+        path: /health
+        port: http
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 6
+
+workloads:
+- name: main
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: '{{helm.release}}'
+  kind: statefulset
+  primary: true
+  helm:
+    labels: podLabels
+    annotations: podAnnotations
+    volumes: extraVolumes
+  containers:
+  - name: meilisearch
+    image: getmeili/meilisearch
+    helm:
+      resources: resources
+      env: envVars
+      mounts: extraVolumeMounts
