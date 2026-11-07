@@ -156,6 +156,10 @@ workloads:
   containers:
   - name: meilisearch
     image: getmeili/meilisearch
+    resources:
+      request:
+        cpu: 20
+        memory: 96
     helm:
       resources: resources
       env: envVars
