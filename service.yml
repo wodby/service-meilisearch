@@ -160,6 +160,9 @@ workloads:
       request:
         cpu: 20
         memory: 96
+      # Indexing uses up to two thirds of this limit; without one it would use the node's memory.
+      limit:
+        memory: 2048
     helm:
       resources: resources
       env: envVars
