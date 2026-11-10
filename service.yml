@@ -11,7 +11,7 @@ labels:
 
 options:
 - version: '1'
-  tag: v1.56.1
+  tag: v1.56.2
   default: true
 
 endpoints:
