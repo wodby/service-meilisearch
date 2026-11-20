@@ -12,6 +12,7 @@ labels:
 options:
 - version: '1'
   tag: v1.57.0
+  digest: sha256:91bf09897482c17205c8faeca8daa8d57999fb9de20d862763cdfa92ba4ec790
   default: true
 
 endpoints:
