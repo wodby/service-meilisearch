@@ -93,7 +93,7 @@ helm:
     fullnameOverride: fullnameOverride
     serviceAccountName: serviceAccount.name
     serviceAccountCreate: serviceAccount.create
-    strategy: updateStrategy.type
+    strategy: updateStrategy
     minReady: minReadySeconds
     shutdownGracePeriod: terminationGracePeriodSeconds
   values:
